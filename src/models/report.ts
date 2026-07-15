@@ -7,13 +7,20 @@ export const reportUsers = [
 ] as const;
 
 export const reportModels = [
-  "GPT-4o",
-  "GPT-4.1",
-  "Claude 3.7 Sonnet",
-  "Claude 4 Sonnet",
-  "Gemini 2.5 Pro",
-  "Llama 3.1 405B",
-  "DeepSeek V3",
+   "Claude Sonnet 5",                                                                                                                        
+   "Claude Sonnet 4.6",                                                                                                                                
+   "Claude Sonnet 4.5",                                                                                                                                                     
+   "Claude Haiku 4.5",                                                                                                                                                     
+   "Claude Opus 4.8",                                                                                                                                
+   "Claude Opus 4.8",                                                                                                                              
+   "Claude Opus 4.6",                                                                                                                               
+   "GPT-5.5",                                                                                                                                
+   "GPT-5.4",                                                                                                                               
+   "GPT-5.3-Codex",                                                                                                                                
+   "GPT-5.4 mini",                                                                                                                                
+   "Gemini 3.1 Pro",                                                                                                                            
+   "Gemini 3.5 Flash",                                                                                                                                
+   "MAI-Code-1-Flash",
 ] as const;
 
 export type ReportUser = (typeof reportUsers)[number];
