@@ -24,6 +24,7 @@ export function normalizeReport(input: unknown): RunReport {
 
   const report = input as Record<string, unknown>;
   const {
+    id,
     user,
     taskId,
     taskName,
@@ -37,6 +38,13 @@ export function normalizeReport(input: unknown): RunReport {
     codeQuality,
     codeQualityDescription,
   } = report;
+
+  if (
+    id !== undefined &&
+    (!Number.isInteger(id) || typeof id !== "number" || id <= 0)
+  ) {
+    throw new Error("id must be a positive integer when provided.");
+  }
 
   if (typeof user !== "string" || !isReportUser(user)) {
     throw new Error("user must be one of the available report users.");
@@ -98,6 +106,7 @@ export function normalizeReport(input: unknown): RunReport {
   }
 
   return {
+    ...(id !== undefined ? { id } : {}),
     user,
     taskId: taskId.trim(),
     taskName: taskName.trim(),

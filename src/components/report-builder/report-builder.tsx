@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { exampleReports, initialFormState } from "@/data/report-defaults";
+import { initialFormState } from "@/data/report-defaults";
 import {
   buildReportFromForm,
   formatReports,
   getReportSummary,
+  normalizeReport,
   parseReportsInput,
 } from "@/lib/report-utils";
 import type { RunFormState, RunReport } from "@/models/report";
@@ -20,14 +21,14 @@ import { ReportNavbar } from "./report-navbar";
 type ReportView = "submit" | "dashboard";
 
 export default function ReportBuilder() {
-  const [reports, setReports] = useState<RunReport[]>(exampleReports);
+  const [reports, setReports] = useState<RunReport[]>([]);
   const [form, setForm] = useState<RunFormState>(initialFormState);
-  const [jsonInput, setJsonInput] = useState(formatReports(exampleReports));
+  const [jsonInput, setJsonInput] = useState(formatReports([]));
   const [activeView, setActiveView] = useState<ReportView>("submit");
-  const [feedback, setFeedback] = useState(
-    "You can add a run from the form or paste JSON into the textarea.",
-  );
+  const [deletingReportId, setDeletingReportId] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState("Loading reports from Supabase.");
   const [error, setError] = useState("");
+  const [isLoadingReports, setIsLoadingReports] = useState(true);
 
   const summary = useMemo(() => getReportSummary(reports), [reports]);
 
@@ -48,13 +49,69 @@ export default function ReportBuilder() {
     }));
   }
 
-  function handleAddReport() {
+  const loadReports = useCallback(async () => {
+    setIsLoadingReports(true);
+
     try {
-      const nextReport = buildReportFromForm(form);
+      const response = await fetch("/api/reports", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load reports from Supabase.");
+      }
+
+      const payload = (await response.json()) as unknown;
+
+      if (!Array.isArray(payload)) {
+        throw new Error("Supabase returned an invalid report payload.");
+      }
+
+      const nextReports = payload.map(normalizeReport);
 
       syncReports(
-        [...reports, nextReport],
-        `Added "${nextReport.taskName}" to the report list.`,
+        nextReports,
+        nextReports.length === 0
+          ? "Connected to Supabase. No reports have been saved yet."
+          : `Loaded ${nextReports.length} report entries from Supabase.`,
+      );
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not load reports.",
+      );
+    } finally {
+      setIsLoadingReports(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadReports();
+  }, [loadReports]);
+
+  async function handleAddReport() {
+    try {
+      const nextReport = buildReportFromForm(form);
+      const response = await fetch("/api/reports", {
+        body: JSON.stringify(nextReport),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+
+        throw new Error(payload.error ?? "Could not save report.");
+      }
+
+      const savedReport = normalizeReport((await response.json()) as unknown);
+
+      syncReports(
+        [...reports, savedReport],
+        `Added "${savedReport.taskName}" to Supabase.`,
       );
       setForm(initialFormState);
     } catch (formError) {
@@ -64,16 +121,83 @@ export default function ReportBuilder() {
     }
   }
 
-  function handleApplyJson() {
+  async function handleApplyJson() {
     try {
       const nextReports = parseReportsInput(jsonInput);
-      syncReports(nextReports, `Loaded ${nextReports.length} report entries from JSON.`);
+      const response = await fetch("/api/reports", {
+        body: JSON.stringify(nextReports),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "PUT",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+
+        throw new Error(payload.error ?? "Could not replace reports.");
+      }
+
+      const savedPayload = (await response.json()) as unknown;
+
+      if (!Array.isArray(savedPayload)) {
+        throw new Error("Supabase returned an invalid report payload.");
+      }
+
+      const savedReports = savedPayload.map(normalizeReport);
+
+      syncReports(
+        savedReports,
+        `Saved ${savedReports.length} report entries to Supabase.`,
+      );
     } catch (parseError) {
       setError(
         parseError instanceof Error
           ? parseError.message
           : "Could not parse the JSON input.",
       );
+    }
+  }
+
+  async function handleDeleteReport(report: RunReport) {
+    if (!report.id) {
+      setError("This report cannot be deleted because it has no database id.");
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `Delete "${report.taskName}" from Supabase?`,
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setDeletingReportId(report.id);
+
+    try {
+      const response = await fetch(`/api/reports/${report.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+
+        throw new Error(payload.error ?? "Could not delete report.");
+      }
+
+      syncReports(
+        reports.filter((currentReport) => currentReport.id !== report.id),
+        `Deleted "${report.taskName}" from Supabase.`,
+      );
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Could not delete report.",
+      );
+    } finally {
+      setDeletingReportId(null);
     }
   }
 
@@ -97,6 +221,10 @@ export default function ReportBuilder() {
     setError("");
   }
 
+  const statusMessage = isLoadingReports
+    ? "Loading reports from Supabase."
+    : error || feedback;
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-50">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
@@ -114,7 +242,7 @@ export default function ReportBuilder() {
 
             <JsonEditor
               jsonInput={jsonInput}
-              statusMessage={error || feedback}
+              statusMessage={statusMessage}
               onJsonChange={setJsonInput}
               onFormatJson={handleFormatJson}
               onLoadJson={handleApplyJson}
@@ -139,7 +267,12 @@ export default function ReportBuilder() {
               </div>
             </section>
 
-            <ReportList reports={reports} summary={summary} />
+            <ReportList
+              deletingReportId={deletingReportId}
+              onDeleteReport={handleDeleteReport}
+              reports={reports}
+              summary={summary}
+            />
           </section>
         )}
       </div>

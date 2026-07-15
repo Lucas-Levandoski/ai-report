@@ -28,6 +28,7 @@ export function isReportModel(value: string): value is ReportModel {
 }
 
 export type RunReport = {
+  id?: number;
   user: ReportUser;
   taskId: string;
   taskName: string;
