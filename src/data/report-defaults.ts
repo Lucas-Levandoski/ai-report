@@ -4,6 +4,7 @@ import type { RunFormState, RunReport } from "@/models/report";
 export const exampleReports: RunReport[] = [
   {
     user: reportUsers[0],
+    projectName: "General",
     taskId: "123123",
     taskName: "Data Processing",
     personalDescription:
@@ -21,6 +22,7 @@ export const exampleReports: RunReport[] = [
 ];
 
 export const initialFormState: RunFormState = {
+  projectName: "General",
   user: "",
   taskId: "",
   taskName: "",

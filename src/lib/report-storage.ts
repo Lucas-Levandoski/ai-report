@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "./supabase/server";
 
 type ReportRow = {
   id: number;
+  project_name: string;
   report_user: string;
   task_id: string;
   task_name: string;
@@ -20,9 +21,32 @@ type ReportRow = {
   created_at: string;
 };
 
+async function ensureProjectsExist(projectNames: string[]) {
+  const supabase = createServerSupabaseClient();
+  const normalized = Array.from(
+    new Set(projectNames.map((name) => name.trim()).filter(Boolean)),
+  );
+
+  if (normalized.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("projects")
+    .upsert(
+      normalized.map((name) => ({ name })),
+      { ignoreDuplicates: true, onConflict: "name" },
+    );
+
+  if (error) {
+    throw new Error(`Could not ensure projects exist: ${error.message}`);
+  }
+}
+
 function mapRowToReport(row: ReportRow): RunReport {
   return normalizeReport({
     id: row.id,
+    projectName: row.project_name,
     user: row.report_user,
     taskId: row.task_id,
     taskName: row.task_name,
@@ -47,6 +71,7 @@ function mapReportToRow(report: RunReport) {
     iterations: report.iterations,
     models: report.models,
     personal_description: report.personalDescription,
+    project_name: report.projectName,
     real_time: report.realTime,
     report_user: report.user,
     task_id: report.taskId,
@@ -70,6 +95,7 @@ export async function listReports() {
 }
 
 export async function createReport(report: RunReport) {
+  await ensureProjectsExist([report.projectName]);
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("reports")
@@ -85,6 +111,7 @@ export async function createReport(report: RunReport) {
 }
 
 export async function replaceReports(reports: RunReport[]) {
+  await ensureProjectsExist(reports.map((report) => report.projectName));
   const supabase = createServerSupabaseClient();
   const { error: deleteError } = await supabase
     .from("reports")

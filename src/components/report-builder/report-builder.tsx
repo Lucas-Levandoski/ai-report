@@ -10,7 +10,7 @@ import {
   normalizeReport,
   parseReportsInput,
 } from "@/lib/report-utils";
-import type { RunFormState, RunReport } from "@/models/report";
+import type { Project, RunFormState, RunReport } from "@/models/report";
 
 import { JsonEditor } from "./json-editor";
 import { ReportForm } from "./report-form";
@@ -22,6 +22,7 @@ type ReportView = "submit" | "dashboard";
 
 export default function ReportBuilder() {
   const [reports, setReports] = useState<RunReport[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [form, setForm] = useState<RunFormState>(initialFormState);
   const [jsonInput, setJsonInput] = useState(formatReports([]));
   const [activeView, setActiveView] = useState<ReportView>("submit");
@@ -29,6 +30,7 @@ export default function ReportBuilder() {
   const [feedback, setFeedback] = useState("Loading reports from Supabase.");
   const [error, setError] = useState("");
   const [isLoadingReports, setIsLoadingReports] = useState(true);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
 
   const summary = useMemo(() => getReportSummary(reports), [reports]);
 
@@ -48,6 +50,52 @@ export default function ReportBuilder() {
       [key]: value,
     }));
   }
+
+  const loadProjects = useCallback(async () => {
+    setIsLoadingProjects(true);
+
+    try {
+      const response = await fetch("/api/projects", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load projects from Supabase.");
+      }
+
+      const payload = (await response.json()) as unknown;
+
+      if (!Array.isArray(payload)) {
+        throw new Error("Supabase returned an invalid project payload.");
+      }
+
+      const nextProjects = payload as Project[];
+      setProjects(nextProjects);
+
+      setForm((current) => {
+        const hasSelected = nextProjects.some(
+          (project) => project.name === current.projectName,
+        );
+
+        if (!hasSelected && nextProjects.length > 0) {
+          return {
+            ...current,
+            projectName: nextProjects[0].name,
+          };
+        }
+
+        return current;
+      });
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not load projects.",
+      );
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  }, []);
 
   const loadReports = useCallback(async () => {
     setIsLoadingReports(true);
@@ -87,8 +135,32 @@ export default function ReportBuilder() {
   }, []);
 
   useEffect(() => {
+    void loadProjects();
     void loadReports();
-  }, [loadReports]);
+  }, [loadProjects, loadReports]);
+
+  async function handleCreateProject(name: string) {
+    const response = await fetch("/api/projects", {
+      body: JSON.stringify({ name }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { error?: string };
+
+      throw new Error(payload.error ?? "Could not create project.");
+    }
+
+    const project = (await response.json()) as Project;
+    setProjects((current) => [...current, project]);
+    setFeedback(`Created "${project.name}" project.`);
+    setError("");
+
+    return project;
+  }
 
   async function handleAddReport() {
     try {
@@ -223,6 +295,8 @@ export default function ReportBuilder() {
 
   const statusMessage = isLoadingReports
     ? "Loading reports from Supabase."
+    : isLoadingProjects
+      ? "Loading projects from Supabase."
     : error || feedback;
 
   return (
@@ -235,9 +309,11 @@ export default function ReportBuilder() {
           <section className="grid gap-8 xl:grid-cols-[1.2fr_1fr]">
             <ReportForm
               form={form}
+              projects={projects}
               onFieldChange={updateForm}
               onAddReport={handleAddReport}
               onClearForm={handleClearForm}
+              onCreateProject={handleCreateProject}
             />
 
             <JsonEditor

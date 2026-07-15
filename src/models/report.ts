@@ -27,8 +27,15 @@ export function isReportModel(value: string): value is ReportModel {
   return reportModels.includes(value as ReportModel);
 }
 
+export type Project = {
+  id: number;
+  name: string;
+  createdAt: string;
+};
+
 export type RunReport = {
   id?: number;
+  projectName: string;
   user: ReportUser;
   taskId: string;
   taskName: string;
@@ -44,6 +51,7 @@ export type RunReport = {
 };
 
 export type RunFormState = {
+  projectName: string;
   user: ReportUser | "";
   taskId: string;
   taskName: string;

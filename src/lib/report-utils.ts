@@ -25,6 +25,7 @@ export function normalizeReport(input: unknown): RunReport {
   const report = input as Record<string, unknown>;
   const {
     id,
+    projectName,
     user,
     taskId,
     taskName,
@@ -44,6 +45,10 @@ export function normalizeReport(input: unknown): RunReport {
     (!Number.isInteger(id) || typeof id !== "number" || id <= 0)
   ) {
     throw new Error("id must be a positive integer when provided.");
+  }
+
+  if (typeof projectName !== "string" || !projectName.trim()) {
+    throw new Error("projectName is required.");
   }
 
   if (typeof user !== "string" || !isReportUser(user)) {
@@ -107,6 +112,7 @@ export function normalizeReport(input: unknown): RunReport {
 
   return {
     ...(id !== undefined ? { id } : {}),
+    projectName: projectName.trim(),
     user,
     taskId: taskId.trim(),
     taskName: taskName.trim(),
@@ -128,6 +134,7 @@ export function buildReportFromForm(form: RunFormState): RunReport {
   }
 
   return normalizeReport({
+    projectName: form.projectName,
     user: form.user,
     taskId: form.taskId,
     taskName: form.taskName,

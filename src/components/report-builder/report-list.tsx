@@ -39,6 +39,9 @@ export function ReportList({
                   <h3 className="text-lg font-semibold text-white">
                     {report.taskName}
                   </h3>
+                  <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-3 py-1 text-xs font-medium text-violet-200">
+                    {report.projectName}
+                  </span>
                   <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200">
                     {report.user}
                   </span>

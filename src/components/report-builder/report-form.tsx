@@ -1,28 +1,57 @@
+import { useMemo, useState } from "react";
+
 import { reportModels, reportUsers } from "@/models/report";
-import type { Complexity, RunFormState } from "@/models/report";
+import type { Complexity, Project, RunFormState } from "@/models/report";
 
 type ReportFormProps = {
   form: RunFormState;
+  projects: Project[];
   onFieldChange: <K extends keyof RunFormState>(
     key: K,
     value: RunFormState[K],
   ) => void;
   onAddReport: () => void;
   onClearForm: () => void;
+  onCreateProject: (name: string) => Promise<Project>;
 };
 
 export function ReportForm({
   form,
+  projects,
   onFieldChange,
   onAddReport,
   onClearForm,
+  onCreateProject,
 }: ReportFormProps) {
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const sortedProjects = useMemo(
+    () => [...projects].sort((a, b) => a.name.localeCompare(b.name)),
+    [projects],
+  );
+
   function handleModelToggle(model: RunFormState["models"][number]) {
     const nextModels = form.models.includes(model)
       ? form.models.filter((currentModel) => currentModel !== model)
       : [...form.models, model];
 
     onFieldChange("models", nextModels);
+  }
+
+  async function handleCreateProject() {
+    if (isCreatingProject) {
+      return;
+    }
+
+    setIsCreatingProject(true);
+
+    try {
+      const project = await onCreateProject(newProjectName);
+      onFieldChange("projectName", project.name);
+      setNewProjectName("");
+    } finally {
+      setIsCreatingProject(false);
+    }
   }
 
   return (
@@ -35,6 +64,50 @@ export function ReportForm({
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-slate-700">Project</span>
+          <select
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-cyan-500 focus:bg-white"
+            value={form.projectName}
+            disabled={sortedProjects.length === 0}
+            onChange={(event) => onFieldChange("projectName", event.target.value)}
+          >
+            {sortedProjects.length === 0 ? (
+              <option value={form.projectName}>
+                {form.projectName || "Loading projects..."}
+              </option>
+            ) : (
+              sortedProjects.map((project) => (
+                <option key={project.id} value={project.name}>
+                  {project.name}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+
+        <div className="space-y-2">
+          <span className="text-sm font-medium text-slate-700">
+            New project
+          </span>
+          <div className="flex gap-2">
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-cyan-500 focus:bg-white"
+              value={newProjectName}
+              onChange={(event) => setNewProjectName(event.target.value)}
+              placeholder="Enter project name"
+            />
+            <button
+              className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!newProjectName.trim() || isCreatingProject}
+              onClick={handleCreateProject}
+              type="button"
+            >
+              {isCreatingProject ? "Creating..." : "Create"}
+            </button>
+          </div>
+        </div>
+
         <label className="space-y-2">
           <span className="text-sm font-medium text-slate-700">User</span>
           <select
